@@ -138,6 +138,10 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
     /** The entry's link flag. */
     private byte linkFlag;
 
+    public byte getLinkFlag() {
+	return linkFlag;
+    }
+
     /** The entry's link name. */
     private String linkName = "";
 
