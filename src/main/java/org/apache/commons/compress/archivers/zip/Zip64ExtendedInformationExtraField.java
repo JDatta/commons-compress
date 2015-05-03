@@ -27,48 +27,15 @@ import static org.apache.commons.compress.archivers.zip.ZipConstants.WORD;
  * Holds size and other extended information for entries that use Zip64
  * features.
  *
- * <p>From {@link "http://www.pkware.com/documents/casestudies/APPNOTE.TXT PKWARE's APPNOTE.TXT"}
- * <pre>
- * Zip64 Extended Information Extra Field (0x0001):
- *
- *          The following is the layout of the zip64 extended 
- *          information "extra" block. If one of the size or
- *          offset fields in the Local or Central directory
- *          record is too small to hold the required data,
- *          a Zip64 extended information record is created.
- *          The order of the fields in the zip64 extended 
- *          information record is fixed, but the fields will
- *          only appear if the corresponding Local or Central
- *          directory record field is set to 0xFFFF or 0xFFFFFFFF.
- *
- *          Note: all fields stored in Intel low-byte/high-byte order.
- *
- *          Value      Size       Description
- *          -----      ----       -----------
- *  (ZIP64) 0x0001     2 bytes    Tag for this "extra" block type
- *          Size       2 bytes    Size of this "extra" block
- *          Original 
- *          Size       8 bytes    Original uncompressed file size
- *          Compressed
- *          Size       8 bytes    Size of compressed data
- *          Relative Header
- *          Offset     8 bytes    Offset of local header record
- *          Disk Start
- *          Number     4 bytes    Number of the disk on which
- *                                this file starts 
- *
- *          This entry in the Local header must include BOTH original
- *          and compressed file size fields. If encrypting the 
- *          central directory and bit 13 of the general purpose bit
- *          flag is set indicating masking, the value stored in the
- *          Local Header for the original file size will be zero.
- * </pre></p>
- *
  * <p>Currently Commons Compress doesn't support encrypting the
- * central directory so the note about masking doesn't apply.</p>
+ * central directory so the note in APPNOTE.TXT about masking doesn't
+ * apply.</p>
  *
  * <p>The implementation relies on data being read from the local file
  * header and assumes that both size values are always present.</p>
+ *
+ * @see <a href="http://www.pkware.com/documents/casestudies/APPNOTE.TXT">PKWARE
+ * APPNOTE.TXT, section 4.5.3</a>
  *
  * @since 1.2
  * @NotThreadSafe
@@ -134,17 +101,14 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
         this.diskStart = diskStart;
     }
 
-    /** {@inheritDoc} */
     public ZipShort getHeaderId() {
         return HEADER_ID;
     }
 
-    /** {@inheritDoc} */
     public ZipShort getLocalFileDataLength() {
         return new ZipShort(size != null ? 2 * DWORD : 0);
     }
 
-    /** {@inheritDoc} */
     public ZipShort getCentralDirectoryLength() {
         return new ZipShort((size != null ? DWORD : 0)
                             + (compressedSize != null ? DWORD : 0)
@@ -152,7 +116,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
                             + (diskStart != null ? WORD : 0));
     }
 
-    /** {@inheritDoc} */
     public byte[] getLocalFileDataData() {
         if (size != null || compressedSize != null) {
             if (size == null || compressedSize == null) {
@@ -165,7 +128,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
         return EMPTY;
     }
 
-    /** {@inheritDoc} */
     public byte[] getCentralDirectoryData() {
         byte[] data = new byte[getCentralDirectoryLength().getValue()];
         int off = addSizes(data);
@@ -180,7 +142,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
         return data;
     }
 
-    /** {@inheritDoc} */
     public void parseFromLocalFileData(byte[] buffer, int offset, int length)
         throws ZipException {
         if (length == 0) {
@@ -210,7 +171,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
         }
     }
 
-    /** {@inheritDoc} */
     public void parseFromCentralDirectoryData(byte[] buffer, int offset,
                                               int length)
         throws ZipException {
@@ -242,7 +202,7 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
      * field with knowledge which fields are expected to be there.
      *
      * <p>All four fields inside the zip64 extended information extra
-     * field are optional and only present if their corresponding
+     * field are optional and must only be present if their corresponding
      * entry inside the central directory contains the correct magic
      * value.</p>
      */
@@ -256,7 +216,7 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
                 + (hasCompressedSize ? DWORD : 0)
                 + (hasRelativeHeaderOffset ? DWORD : 0)
                 + (hasDiskStart ? WORD : 0);
-            if (rawCentralDirectoryData.length != expectedLength) {
+            if (rawCentralDirectoryData.length < expectedLength) {
                 throw new ZipException("central directory zip64 extended"
                                        + " information extra field's length"
                                        + " doesn't match central directory"

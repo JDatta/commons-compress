@@ -19,8 +19,10 @@
 package org.apache.commons.compress.archivers.zip;
 
 import static org.apache.commons.compress.AbstractTestCase.getFile;
+import static org.junit.Assert.*;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -30,16 +32,19 @@ import java.util.Enumeration;
 import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 
-import junit.framework.TestCase;
+import org.apache.commons.compress.utils.IOUtils;
+import org.junit.After;
+import org.junit.Test;
 
-public class ZipFileTest extends TestCase {
+public class ZipFileTest {
     private ZipFile zf = null;
 
-    @Override
+    @After
     public void tearDown() {
         ZipFile.closeQuietly(zf);
     }
 
+    @Test
     public void testCDOrder() throws Exception {
         readOrderTest();
         ArrayList<ZipArchiveEntry> l = Collections.list(zf.getEntries());
@@ -68,6 +73,7 @@ public class ZipFileTest extends TestCase {
         assertEntryName(l, 22, "ZipFile");
     }
 
+    @Test
     public void testPhysicalOrder() throws Exception {
         readOrderTest();
         ArrayList<ZipArchiveEntry> l = Collections.list(zf.getEntriesInPhysicalOrder());
@@ -96,6 +102,7 @@ public class ZipFileTest extends TestCase {
         assertEntryName(l, 22, "ZipUtil");
     }
 
+    @Test
     public void testDoubleClose() throws Exception {
         readOrderTest();
         zf.close();
@@ -106,6 +113,7 @@ public class ZipFileTest extends TestCase {
         }
     }
 
+    @Test
     public void testReadingOfStoredEntry() throws Exception {
         File f = File.createTempFile("commons-compress-zipfiletest", ".zip");
         f.deleteOnExit();
@@ -146,6 +154,7 @@ public class ZipFileTest extends TestCase {
     /**
      * @see "https://issues.apache.org/jira/browse/COMPRESS-176"
      */
+    @Test
     public void testWinzipBackSlashWorkaround() throws Exception {
         File archive = getFile("test-winzip.zip");
         zf = new ZipFile(archive);
@@ -158,6 +167,7 @@ public class ZipFileTest extends TestCase {
      * <a href="https://issues.apache.org/jira/browse/COMPRESS-208"
      * >COMPRESS-208</a>.
      */
+    @Test
     public void testSkipsPK00Prefix() throws Exception {
         File archive = getFile("COMPRESS-208.zip");
         zf = new ZipFile(archive);
@@ -165,6 +175,7 @@ public class ZipFileTest extends TestCase {
         assertNotNull(zf.getEntry("test2.xml"));
     }
 
+    @Test
     public void testUnixSymlinkSampleFile() throws Exception {
         final String entryPrefix = "COMPRESS-214_unix_symlinks/";
         final TreeMap<String, String> expectedVals = new TreeMap<String, String>();
@@ -204,46 +215,73 @@ public class ZipFileTest extends TestCase {
         }
     }
 
+    /**
+     * @see "https://issues.apache.org/jira/browse/COMPRESS-227"
+     */
+    @Test
     public void testDuplicateEntry() throws Exception {
-        File f = File.createTempFile("commons-compress-zipfiletest", ".zip");
-        f.deleteOnExit();
-        File f2 = File.createTempFile("commons-compress-zipfiletest", ".txt");
-        f2.deleteOnExit();
+        File archive = getFile("COMPRESS-227.zip");
+        zf = new ZipFile(archive);
 
-        OutputStream o = null;
-        try {
-            o = new FileOutputStream(f);
-            ZipArchiveOutputStream zo = new ZipArchiveOutputStream(o);
-            // simple way to ensure entries have extra data
-            zo.setUseZip64(Zip64Mode.Always);
+        ZipArchiveEntry ze = zf.getEntry("test1.txt");
+        assertNotNull(ze);
+        assertNotNull(zf.getInputStream(ze));
 
-            // add the same file twice
-            ZipArchiveEntry ze = new ZipArchiveEntry(f2, "foo");
-            zo.putArchiveEntry(ze);
-            zo.write(new byte[0]);
-            zo.closeArchiveEntry();
-            ze = new ZipArchiveEntry(f2, "foo");
-            zo.putArchiveEntry(ze);
-            zo.write(new byte[0]);
-            zo.closeArchiveEntry();
-            zo.close();
-
-            o.close();
-            o = null;
-
-            System.err.println("-------------------vvvvvvvvvvvvvvvvvvvvvvv-----------");
-            zf = new ZipFile(f);
-            ze = zf.getEntry("foo");
-            assertNotNull(ze);
-            assertNotNull(zf.getInputStream(ze));
-        } finally {
-            System.err.println("-------------------^^^^^^^^^^^^^^^^^^^^^^^-----------");
-            if (o != null) {
-                o.close();
-            }
-            f.delete();
-            f2.delete();
+        int numberOfEntries = 0;
+        for (ZipArchiveEntry entry : zf.getEntries("test1.txt")) {
+            numberOfEntries++;
+            assertNotNull(zf.getInputStream(entry));
         }
+        assertEquals(2, numberOfEntries);
+    }
+
+    /**
+     * @see "https://issues.apache.org/jira/browse/COMPRESS-228"
+     */
+    @Test
+    public void testExcessDataInZip64ExtraField() throws Exception {
+        File archive = getFile("COMPRESS-228.zip");
+        zf = new ZipFile(archive);
+        // actually, if we get here, the test already has passed
+
+        ZipArchiveEntry ze = zf.getEntry("src/main/java/org/apache/commons/compress/archivers/zip/ZipFile.java");
+        assertEquals(26101, ze.getSize());
+    }
+
+    @Test
+    public void testUnshrinking() throws Exception {
+        zf = new ZipFile(getFile("SHRUNK.ZIP"));
+        ZipArchiveEntry test = zf.getEntry("TEST1.XML");
+        FileInputStream original = new FileInputStream(getFile("test1.xml"));
+        try {
+            assertArrayEquals(IOUtils.toByteArray(original),
+                              IOUtils.toByteArray(zf.getInputStream(test)));
+        } finally {
+            original.close();
+        }
+        test = zf.getEntry("TEST2.XML");
+        original = new FileInputStream(getFile("test2.xml"));
+        try {
+            assertArrayEquals(IOUtils.toByteArray(original),
+                              IOUtils.toByteArray(zf.getInputStream(test)));
+        } finally {
+            original.close();
+        }
+    }
+
+    /**
+     * Test case for 
+     * <a href="https://issues.apache.org/jira/browse/COMPRESS-264"
+     * >COMPRESS-264</a>.
+     */
+    @Test
+    public void testReadingOfFirstStoredEntry() throws Exception {
+        File archive = getFile("COMPRESS-264.zip");
+        zf = new ZipFile(archive);
+        ZipArchiveEntry ze = zf.getEntry("test.txt");
+        assertEquals(5, ze.getSize());
+        assertArrayEquals(new byte[] {'d', 'a', 't', 'a', '\n'},
+                          IOUtils.toByteArray(zf.getInputStream(ze)));
     }
 
     /*

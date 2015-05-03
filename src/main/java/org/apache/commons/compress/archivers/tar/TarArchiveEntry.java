@@ -226,7 +226,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
         this.name = name;
         this.mode = isDir ? DEFAULT_DIR_MODE : DEFAULT_FILE_MODE;
         this.linkFlag = isDir ? LF_DIR : LF_NORMAL;
-        this.modTime = (new Date()).getTime() / MILLIS_PER_SECOND;
+        this.modTime = new Date().getTime() / MILLIS_PER_SECOND;
         this.userName = "";
     }
 
@@ -267,7 +267,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      * @param file The file that the entry represents.
      */
     public TarArchiveEntry(File file) {
-        this(file, normalizeFileName(file.getPath(), false));
+        this(file, file.getPath());
     }
 
     /**
@@ -278,23 +278,24 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      * @param fileName the name to be used for the entry.
      */
     public TarArchiveEntry(File file, String fileName) {
+        String normalizedName = normalizeFileName(fileName, false);
         this.file = file;
 
         if (file.isDirectory()) {
             this.mode = DEFAULT_DIR_MODE;
             this.linkFlag = LF_DIR;
 
-            int nameLength = fileName.length();
-            if (nameLength == 0 || fileName.charAt(nameLength - 1) != '/') {
-                this.name = fileName + "/";
+            int nameLength = normalizedName.length();
+            if (nameLength == 0 || normalizedName.charAt(nameLength - 1) != '/') {
+                this.name = normalizedName + "/";
             } else {
-                this.name = fileName;
+                this.name = normalizedName;
             }
         } else {
             this.mode = DEFAULT_FILE_MODE;
             this.linkFlag = LF_NORMAL;
             this.size = file.length();
-            this.name = fileName;
+            this.name = normalizedName;
         }
 
         this.modTime = file.lastModified() / MILLIS_PER_SECOND;
@@ -382,7 +383,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      * @return This entry's name.
      */
     public String getName() {
-        return name.toString();
+        return name;
     }
 
     /**
@@ -409,7 +410,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      * @return This entry's link name.
      */
     public String getLinkName() {
-        return linkName.toString();
+        return linkName;
     }
 
     /**
@@ -465,7 +466,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      * @return This entry's user name.
      */
     public String getUserName() {
-        return userName.toString();
+        return userName;
     }
 
     /**
@@ -483,7 +484,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      * @return This entry's group name.
      */
     public String getGroupName() {
-        return groupName.toString();
+        return groupName;
     }
 
     /**
@@ -545,7 +546,6 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
         return new Date(modTime * MILLIS_PER_SECOND);
     }
 
-    /** {@inheritDoc} */
     public Date getLastModifiedDate() {
         return getModTime();
     }
@@ -677,6 +677,16 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
      */
     public boolean isGNUSparse() {
         return linkFlag == LF_GNUTYPE_SPARSE;
+    }
+
+    /**
+     * Indicate if this entry is a GNU long linkname block
+     *
+     * @return true if this is a long name extension provided by GNU tar
+     */
+    public boolean isGNULongLinkEntry() {
+        return linkFlag == LF_GNUTYPE_LONGLINK
+            && name.equals(GNU_LONGLINK);
     }
 
     /**
@@ -892,7 +902,7 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
     private int writeEntryHeaderField(long value, byte[] outbuf, int offset,
                                       int length, boolean starMode) {
         if (!starMode && (value < 0
-                          || value >= (1l << (3 * (length - 1))))) {
+                          || value >= 1l << 3 * (length - 1))) {
             // value doesn't fit into field when written as octal
             // number, will be written to PAX header or causes an
             // error
@@ -1025,12 +1035,12 @@ public class TarArchiveEntry implements TarConstants, ArchiveEntry {
                     char ch2 = fileName.charAt(1);
 
                     if (ch2 == ':'
-                        && ((ch1 >= 'a' && ch1 <= 'z')
-                            || (ch1 >= 'A' && ch1 <= 'Z'))) {
+                        && (ch1 >= 'a' && ch1 <= 'z'
+                            || ch1 >= 'A' && ch1 <= 'Z')) {
                         fileName = fileName.substring(2);
                     }
                 }
-            } else if (osname.indexOf("netware") > -1) {
+            } else if (osname.contains("netware")) {
                 int colon = fileName.indexOf(':');
                 if (colon != -1) {
                     fileName = fileName.substring(colon + 1);

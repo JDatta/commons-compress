@@ -27,6 +27,12 @@ package org.apache.commons.compress.archivers.tar;
 // CheckStyle:InterfaceIsTypeCheck OFF (bc)
 public interface TarConstants {
 
+    /** Default record size */
+    int DEFAULT_RCDSIZE = 512;
+
+    /** Default block size */
+    int DEFAULT_BLKSIZE = DEFAULT_RCDSIZE * 20;
+
     /**
      * GNU format as per before tar 1.12.
      */
@@ -231,6 +237,11 @@ public interface TarConstants {
      * Contiguous file type.
      */
     byte   LF_CONTIG = (byte) '7';
+
+    /**
+     * Identifies the *next* file on the tape as having a long linkname.
+     */
+    byte LF_GNUTYPE_LONGLINK = (byte) 'K';
 
     /**
      * Identifies the *next* file on the tape as having a long name.
